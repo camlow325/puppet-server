@@ -39,10 +39,17 @@ class Puppet::Server::Config
     # Do this lazily due to startup-ordering issues - to give the CA
     # service time to create these files before they are referenced here.
     unless @ssl_context
+      crlReader = nil
+      if Puppet[:hostcrl] && File.readable?(Puppet[:hostcrl])
+          crlReader = FileReader.new(Puppet[:hostcrl])
+      end
+
       @ssl_context = CertificateAuthority.pems_to_ssl_context(
           FileReader.new(Puppet[:hostcert]),
           FileReader.new(Puppet[:hostprivkey]),
-          FileReader.new(Puppet[:localcacert]))
+          FileReader.new(Puppet[:localcacert]),
+          crlReader
+      )
     end
     @ssl_context
   end

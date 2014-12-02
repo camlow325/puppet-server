@@ -15,7 +15,7 @@
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [puppetlabs/trapperkeeper ~tk-version]
                  [puppetlabs/kitchensink ~ks-version]
-                 [puppetlabs/certificate-authority "0.6.0"]
+                 [puppetlabs/certificate-authority "0.6.1-SNAPSHOT"]
                  [puppetlabs/http-client "0.4.0"]
                  [org.jruby/jruby-core "1.7.15" :exclusions [com.github.jnr/jffi com.github.jnr/jnr-x86asm]]
                  ;; NOTE: jruby-stdlib packages some unexpected things inside
@@ -34,7 +34,7 @@
                  [commons-io "2.4"]
                  [clj-yaml "0.4.0" :exclusions [org.yaml/snakeyaml]]
                  [slingshot "0.10.3"]
-                 [ring/ring-codec "1.0.0"]
+                 [ring/ring-codec "1.0.0" :exclusions [commons-codec]]
                  [cheshire "5.3.1"]
                  [trptcolin/versioneer "0.1.0"]]
 

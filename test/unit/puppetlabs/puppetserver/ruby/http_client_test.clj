@@ -5,14 +5,17 @@
            (com.puppetlabs.http.client HttpClientException)
            (javax.net.ssl SSLHandshakeException)
            (java.util HashMap)
-           (java.io IOException))
+           (sun.security.validator ValidatorException)
+           (java.security.cert CertPathValidatorException CertificateRevokedException))
   (:require [clojure.test :refer :all]
             [puppetlabs.trapperkeeper.testutils.logging :as logutils]
             [puppetlabs.trapperkeeper.testutils.webserver :as jetty9]
             [puppetlabs.trapperkeeper.testutils.webserver.common :refer [http-get]]
             [puppetlabs.services.jruby.jruby-puppet-core :as jruby-puppet]
             [puppetlabs.services.jruby.jruby-testutils :as jruby-testutils]
-            [ring.middleware.basic-authentication :as auth]))
+            [ring.middleware.basic-authentication :as auth]
+            [puppetlabs.kitchensink.core :as ks]
+            [me.raynes.fs :as fs]))
 
 ;; NOTE: this namespace is pretty disgusting.  It'd be much nicer to test this
 ;; ruby code via ruby spec tests, but since we need to stand up a webserver to
@@ -108,6 +111,8 @@
 
 (def ca-pem (test-resource "ca.pem"))
 (def cert-pem (test-resource "localhost_cert.pem"))
+(def hostcrl-localhost-revoked-pem (test-resource "crl_localhost_revoked.pem"))
+(def hostcrl-none-revoked-pem (test-resource "crl_none_revoked.pem"))
 (def privkey-pem (test-resource "localhost_key.pem"))
 
 (defn create-scripting-container-with-ssl-client
@@ -116,6 +121,7 @@
   ([port options]
    (doto (create-scripting-container port (merge {:use-ssl true} options))
      (.runScriptlet (format "Puppet[:hostcert] = '%s'" cert-pem))
+     (.runScriptlet (format "Puppet[:hostcrl] = '%s'" hostcrl-none-revoked-pem))
      (.runScriptlet (format "Puppet[:hostprivkey] = '%s'" privkey-pem))
      (.runScriptlet (format "Puppet[:localcacert] = '%s'" ca-pem)))))
 
@@ -229,3 +235,46 @@
       (jetty9/with-test-webserver ring-app-connection-closed port
         (let [scripting-container (create-scripting-container port)]
           (is (= "The Connection header has value close" (.runScriptlet scripting-container "c.post('/', 'foo', {}).body"))))))))
+
+(deftest https-crl-revoked
+  (logutils/with-test-logging
+    (with-webserver-with-protocols ["TLSv1.2"] nil
+      (testing "Should fail connection if server cert revoked in CRL"
+        (let [sc (create-scripting-container-with-ssl-client 10080)]
+             (.runScriptlet sc (format "Puppet[:hostcrl] = '%s'"
+                                    hostcrl-localhost-revoked-pem))
+             (try
+               (.runScriptlet sc "response = c.get('/', {})")
+               (is (true? false)
+                   "Expected HTTP connection to HTTPS port to fail")
+               (catch EvalFailedException e
+                 (is (instance? HttpClientException (.. e getCause)))
+                 (is (instance? SSLHandshakeException (.. e getCause
+                                                            getCause)))
+                 (is (instance? SSLHandshakeException (.. e getCause
+                                                            getCause
+                                                            getCause)))
+                 (is (instance? ValidatorException (.. e getCause
+                                                         getCause
+                                                         getCause
+                                                         getCause)))
+                 (is (instance? CertPathValidatorException (.. e getCause
+                                                                 getCause
+                                                                 getCause
+                                                                 getCause
+                                                                 getCause)))
+                 (is (instance? CertificateRevokedException (.. e getCause
+                                                                  getCause
+                                                                  getCause
+                                                                  getCause
+                                                                  getCause
+                                                                  getCause)))))))
+      (testing "Should succeed in connecting if CRL not found"
+        (let [sc        (create-scripting-container-with-ssl-client 10080)
+              temp-file (ks/temp-file)
+              _         (fs/delete temp-file)]
+          (.runScriptlet sc (format "Puppet[:hostcrl] = '%s'"
+                                    (.getPath temp-file)))
+          (.runScriptlet sc "response = c.get('/', {})")
+          (is (= "200" (.runScriptlet sc "response.code")))
+          (is (= "hi" (.runScriptlet sc "response.body"))))))))
