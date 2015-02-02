@@ -1,6 +1,7 @@
 (def tk-version "1.0.1")
 (def tk-jetty-version "1.1.0")
 (def ks-version "1.0.0")
+(def tk-yourkit-version "0.1.0-SNAPSHOT")
 
 (defn deploy-info
   [url]
@@ -9,7 +10,7 @@
     :password :env/nexus_jenkins_password
     :sign-releases false })
 
-(defproject puppetlabs/puppet-server "1.0.4-SNAPSHOT"
+(defproject puppetlabs/puppet-server "1.0.4-yourkit-SNAPSHOT"
   :description "Puppet Server"
 
   :dependencies [[org.clojure/clojure "1.5.1"]
@@ -36,7 +37,8 @@
                  [slingshot "0.10.3"]
                  [ring/ring-codec "1.0.0"]
                  [cheshire "5.3.1"]
-                 [trptcolin/versioneer "0.1.0"]]
+                 [trptcolin/versioneer "0.1.0"]
+                 [puppetlabs/trapperkeeper-yourkit ~tk-yourkit-version]]
 
   :main puppetlabs.trapperkeeper.main
 
@@ -68,7 +70,8 @@
                                    [spyscope "0.1.4" :exclusions [clj-time]]]
                    :injections    [(require 'spyscope.core)]}
 
-             :uberjar {:aot [puppetlabs.trapperkeeper.main]}
+             :uberjar {:aot [puppetlabs.trapperkeeper.main]
+                       :dependencies [[puppetlabs/trapperkeeper-webserver-jetty9 ~tk-jetty-version]]}
              :ci {:plugins [[lein-pprint "1.1.1"]]}}
 
   :test-selectors {:default (complement :integration)
@@ -78,10 +81,13 @@
 
   :aliases {"gem" ["trampoline" "run" "-m" "puppetlabs.puppetserver.cli.gem"]
             "ruby" ["trampoline" "run" "-m" "puppetlabs.puppetserver.cli.ruby"]
-            "irb" ["trampoline" "run" "-m" "puppetlabs.puppetserver.cli.irb"]}
+            "irb" ["trampoline" "run" "-m" "puppetlabs.puppetserver.cli.irb"]
+            "yourkit" ["trampoline" "run" "--plugins" "./lib"]}
 
   ; tests use a lot of PermGen (jruby instances)
-  :jvm-opts ["-XX:MaxPermSize=256m"]
+  :jvm-opts ["-XX:MaxPermSize=256m"
+             "-agentpath:./lib/libyjpagent.lib=disableexceptiontelemetry"
+             "-Djruby.reify.classes=true"]
 
   :repl-options {:init-ns user}
 

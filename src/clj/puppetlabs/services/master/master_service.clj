@@ -9,7 +9,8 @@
   [[:WebroutingService add-ring-handler get-route]
    [:PuppetServerConfigService get-config]
    [:RequestHandlerService handle-request]
-   [:CaService initialize-master-ssl! retrieve-ca-cert!]]
+   [:CaService initialize-master-ssl! retrieve-ca-cert!]
+   [:YourKitService take-snapshot!]]
   (init
    [this context]
    (core/validate-memory-requirements!)
@@ -25,7 +26,7 @@
      (log/info "Master Service adding a ring handler")
      (add-ring-handler
        this
-      (compojure/context path [] (core/build-ring-handler handle-request))))
+      (compojure/context path [] (core/build-ring-handler handle-request take-snapshot!))))
    context)
   (start
     [this context]
