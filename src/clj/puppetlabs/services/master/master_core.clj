@@ -19,11 +19,12 @@
    - ie, any route without a version in its path (eg, /v2.0/whatever) - but
    excluding the CA-related endpoints, which are handled separately by the
    CA service."
-  [request-handler]
+  [request-handler take-snapshot!]
   (compojure/routes
     ; TODO there are a bunch more that we'll need to add here
     ; https://tickets.puppetlabs.com/browse/PE-3977
     (compojure/GET "/node/*" request
+                   (take-snapshot!)
                    (request-handler request))
     (compojure/GET "/facts/*" request
                    (request-handler request))
@@ -58,12 +59,13 @@
 
 (defn root-routes
   "Creates all of the compojure routes for the master."
-  [request-handler]
+  [request-handler take-snapshot!]
   (compojure/routes
     (compojure/context "/v2.0" request
                        (v2_0-routes request-handler))
     (compojure/context "/:environment" [environment]
-                       (legacy-routes request-handler))))
+                       (legacy-routes request-handler
+                                      take-snapshot!))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Lifecycle Helper Functions
@@ -96,8 +98,8 @@
 
 (defn compojure-app
   "Creates the entire compojure application (all routes and middleware)."
-  [request-handler]
+  [request-handler take-snapshot!]
   {:pre [(fn? request-handler)]}
-  (-> (root-routes request-handler)
+  (-> (root-routes request-handler take-snapshot!)
       ringutils/wrap-request-logging
       ringutils/wrap-response-logging))

@@ -9,7 +9,8 @@
   [[:WebserverService add-ring-handler]
    [:PuppetServerConfigService get-config]
    [:RequestHandlerService handle-request]
-   [:CaService initialize-master-ssl! retrieve-ca-cert!]]
+   [:CaService initialize-master-ssl! retrieve-ca-cert!]
+   [:YourKitService take-snapshot!]]
   (init
    [this context]
    (core/validate-memory-requirements!)
@@ -24,6 +25,6 @@
 
      (log/info "Master Service adding a ring handler")
      (add-ring-handler
-      (compojure/context path [] (core/compojure-app handle-request))
+      (compojure/context path [] (core/compojure-app handle-request take-snapshot!))
       path))
    context))
