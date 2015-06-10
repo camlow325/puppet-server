@@ -110,7 +110,7 @@
       (request-handler request))))
 
 (defn legacy-master-routes
-  [master-request-handler ca-request-handler]
+  [master-request-handler]
   (comidi/routes
     (comidi/GET ["/node/" [#".*" :rest]] request
       (master-request-handler request))
@@ -142,9 +142,11 @@
     (comidi/GET ["/resource_types/" [#".*" :rest]] request
       (master-request-handler request))
     (comidi/GET ["/status/" [#".*" :rest]] request
-      (master-request-handler request))
+      (master-request-handler request))))
 
-    ;; legacy CA routes
+(defn legacy-ca-routes
+  [ca-request-handler]
+  (comidi/routes
     (comidi/ANY ["/certificate_status/" [#".*" :rest]] request
       (ca-request-handler request))
     (comidi/ANY ["/certificate_statuses/" [#".*" :rest]] request
@@ -165,7 +167,10 @@
     (comidi/context "/v2.0"
       (v2_0-routes master-request-handler))
     (comidi/context ["/" :environment]
-      (legacy-master-routes master-request-handler ca-request-handler))))
+      (legacy-master-routes master-request-handler)
+      (if ca-request-handler
+        (legacy-ca-routes ca-request-handler)
+        (comidi/routes)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Public
@@ -177,5 +182,6 @@
     (legacy-routes
       #(request-compatibility-wrapper
         master-handler master-mount master-api-version %)
-      #(request-compatibility-wrapper
-        ca-handler ca-mount ca-api-version %))))
+      (if ca-handler
+        #(request-compatibility-wrapper
+          ca-handler ca-mount ca-api-version %)))))
