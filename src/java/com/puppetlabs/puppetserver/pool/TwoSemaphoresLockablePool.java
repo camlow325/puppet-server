@@ -24,7 +24,7 @@ public class TwoSemaphoresLockablePool<E> implements LockablePool<E> {
 
     // a semaphore used to block the "lock" method from returning until all of
     // the instances are back in the pool.
-    private final ReducibleSemaphore lockSemaphore = new ReducibleSemaphore(0);
+    //private final ReducibleSemaphore lockSemaphore = new ReducibleSemaphore(0);
 
     // the main lock, used to allow re-entrant borrows and to prevent
     // "register" and "lock" from being called at the same time.
@@ -61,12 +61,21 @@ public class TwoSemaphoresLockablePool<E> implements LockablePool<E> {
         // we skip this block for threads that hold the write lock,
         // so that thread can access the queue directly.
         if (! writeLock.isHeldByCurrentThread()) {
-            // this is what'll cause normal borrows to block
-            borrowSemaphore.acquire();
+            boolean locked = false;
+
+            do {
+                // this is what'll cause normal borrows to block
+                borrowSemaphore.acquire();
+
+                locked = writeLock.isLocked();
+                if (locked)
+                    borrowSemaphore.release();
+            } while (locked);
+
             // we don't need to 'acquire' a ticket from the second semaphore,
             // it's only relevant to the "lock" method, but we do need to update
             // it to reflect the current number of instances available.
-            lockSemaphore.reduce(1);
+            //lockSemaphore.reduce(1);
         }
         return queue.takeFirst();
     }
@@ -93,11 +102,12 @@ public class TwoSemaphoresLockablePool<E> implements LockablePool<E> {
         // from a minimum of (0 - count) to a maximum of 0.  This means that
         // no more borrows will be possible until we increase the semaphore again
         // in "unlock".
-        borrowSemaphore.reduce(count);
+        // borrowSemaphore.reduce(count);
+        borrowSemaphore.acquire(count);
         // now we wait until enough "returnItem" calls have been made so that
         // the lock semaphore can acquire one ticket for each instance; effectively,
         // this means that all of the instances have been returned to the pool.
-        lockSemaphore.acquire(count);
+        // lockSemaphore.acquire(count);
 
         // side note: my original attempt at implementing this only used a semaphore,
         // and did an 'acquire(0)' on the line above.  The Semaphore class does
@@ -115,7 +125,7 @@ public class TwoSemaphoresLockablePool<E> implements LockablePool<E> {
         // assert writeLock.isHeldByCurrentThread();
 
         // add back the count to the lock semaphore
-        lockSemaphore.release(count);
+        // lockSemaphore.release(count);
         // release the main lock
         writeLock.unlock();
         // add the count back to the borrow semaphore; this shifts its range
@@ -128,7 +138,7 @@ public class TwoSemaphoresLockablePool<E> implements LockablePool<E> {
         // convenience method to increment both semaphores at the same
         // time.
         borrowSemaphore.release();
-        lockSemaphore.release();
+        // lockSemaphore.release();
     }
 
 

@@ -6,9 +6,9 @@
   [size]
   ;; NOTE: uncomment one of the following two lines, to run the tests against
   ;; the preferred implementation.
-  ;(TwoSemaphoresLockablePool. size)
+  (TwoSemaphoresLockablePool. size)
   ;(TwoQueuesLockablePool. size)
-  (RRWLLockablePool. size)
+  ;(RRWLLockablePool. size)
   )
 
 (defn create-populated-pool
