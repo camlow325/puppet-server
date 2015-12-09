@@ -251,7 +251,7 @@
                               (deliver lock-started? true)
                               @unlock?
                               (.unlock pool))]
-      (is (thrown? IllegalStateException (.unlock pool)))
+      (is (thrown? IllegalMonitorStateException (.unlock pool)))
       (deliver unlock? true)
       @lock-thread
       (is (true? true)))))

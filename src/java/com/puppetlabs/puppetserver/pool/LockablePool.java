@@ -92,7 +92,7 @@ public interface LockablePool<E> {
     * Release the exclusive lock so that other threads may begin to perform
     * borrow operations again.
     */
-    void unlock() throws InterruptedException;
+    void unlock() throws IllegalMonitorStateException;
 
    /**
     * Returns a set of all of the known elements that have been registered with
