@@ -21,11 +21,12 @@
                  [org.clojure/tools.macro "0.1.5"]
                  [com.fasterxml.jackson.core/jackson-core "2.5.4"]
                  [org.clojure/tools.reader "1.0.0-alpha1"]
+                 [org.yaml/snakeyaml "1.14"]
                  ;; end version conflict resolution dependencies
 
                  [cheshire "5.3.1"]
                  [slingshot "0.10.3"]
-                 [clj-yaml "0.4.0" :exclusions [org.yaml/snakeyaml]]
+                 [clj-yaml "0.4.0"]
                  [commons-lang "2.6"]
                  [commons-io "2.4"]
                  [clj-time "0.11.0"]
@@ -34,18 +35,11 @@
                  [liberator "0.12.0"]
                  [org.apache.commons/commons-exec "1.3"]
 
-                 [org.jruby/jruby-core "1.7.20.1"
-                  :exclusions [com.github.jnr/jffi com.github.jnr/jnr-x86asm]]
-                 ;; jffi and jnr-x86asm are explicit dependencies because,
-                 ;; in JRuby's poms, they are defined using version ranges,
-                 ;; and :pedantic? :abort won't tolerate this.
-                 [com.github.jnr/jffi "1.2.9"]
-                 [com.github.jnr/jffi "1.2.9" :classifier "native"]
-                 [com.github.jnr/jnr-x86asm "1.0.2"]
+                 [org.jruby/jruby-core "9.0.4.0"]
                  ;; NOTE: jruby-stdlib packages some unexpected things inside
                  ;; of its jar; please read the detailed notes above the
                  ;; 'uberjar-exclusions' example toward the end of this file.
-                 [org.jruby/jruby-stdlib "1.7.20.1"]
+                 [org.jruby/jruby-stdlib "9.0.4.0"]
 
                  ;; we do not currently use this dependency directly, but
                  ;; we have documentation that shows how users can use it to
@@ -142,13 +136,14 @@
 
   :repl-options {:init-ns user}
 
-  ;; NOTE: jruby-stdlib packages some unexpected things inside
-  ;; of its jar.  e.g., it puts a pre-built copy of the bouncycastle
-  ;; jar into its META-INF directory.  This is highly undesirable
+  ;; NOTE: jruby-stdlib packages some unexpected things inside of its jar.
+  ;; e.g., it puts a pre-built copy of the bouncycastle and snakeyaml
+  ;; jars into its META-INF directory.  This is highly undesirable
   ;; for projects that already have a dependency on a different
-  ;; version of bouncycastle.  Therefore, when building uberjars,
+  ;; versions of these jars.  Therefore, when building uberjars,
   ;; you should take care to exclude the things that you don't want
   ;; in your final jar.  Here is an example of how you could exclude
   ;; that from the final uberjar:
-  :uberjar-exclusions [#"META-INF/jruby.home/lib/ruby/shared/org/bouncycastle"]
+  :uberjar-exclusions [#"META-INF/jruby.home/lib/ruby/stdlib/org/bouncycastle"
+                       #"META-INF/jruby.home/lib/ruby/stdlib/org/yaml/snakeyaml"]
   )

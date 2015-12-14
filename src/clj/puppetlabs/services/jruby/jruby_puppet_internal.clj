@@ -8,11 +8,12 @@
            (com.puppetlabs.puppetserver.pool JRubyPool)
            (puppetlabs.services.jruby.jruby_puppet_schemas JRubyPuppetInstance PoisonPill ShutdownPoisonPill)
            (java.util HashMap)
-           (org.jruby CompatVersion Main RubyInstanceConfig RubyInstanceConfig$CompileMode)
+           (org.jruby Main RubyInstanceConfig RubyInstanceConfig$CompileMode)
            (org.jruby.embed LocalContextScope)
            (java.util.concurrent TimeUnit)
            (clojure.lang IFn)
-           (com.puppetlabs.puppetserver.jruby ScriptingContainer)))
+           (com.puppetlabs.puppetserver.jruby ScriptingContainer)
+           (java.io InputStream PrintStream)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Definitions
@@ -28,12 +29,12 @@
   classpath.
 
   See also:  http://jruby.org/apidocs/org/jruby/runtime/load/LoadService.html"
-  "puppetserver-lib")
+  "classpath:/puppetserver-lib")
 
-(def compat-version
-  "The JRuby compatibility version to use for all ruby components, e.g. the
-  master service and CLI tools."
-  (CompatVersion/RUBY1_9))
+(def compile-mode
+  "The JRuby compile mode to use for all ruby components, e.g. the master
+  service and CLI tools."
+  RubyInstanceConfig$CompileMode/OFF)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Schemas
@@ -108,7 +109,6 @@
    compile-mode :- jruby-schemas/SupportedJRubyCompileModes]
   (doto jruby-config
     (.setLoadPaths (managed-load-path ruby-load-path))
-    (.setCompatVersion compat-version)
     (.setCompileMode (get-compile-mode compile-mode))
     (.setEnvironment (managed-environment (get-system-env) gem-home))))
 
@@ -337,11 +337,20 @@
   "Return a new JRuby Main instance which should only be used for CLI purposes,
   e.g. for the ruby, gem, and irb subcommands.  Internal core services should
   use `create-scripting-container` instead of `new-main`."
-  [config :- jruby-schemas/JRubyPuppetConfig]
+  [config :- jruby-schemas/JRubyPuppetConfig
+   input-stream :- (schema/maybe InputStream)
+   output-stream :- (schema/maybe PrintStream)
+   error-stream :- (schema/maybe PrintStream)]
   (let [{:keys [ruby-load-path gem-home compile-mode]} config
         jruby-config (init-jruby-config
                       (RubyInstanceConfig.)
                       ruby-load-path
                       gem-home
                       compile-mode)]
+    (when input-stream
+      (.setInput jruby-config input-stream))
+    (when output-stream
+      (.setOutput jruby-config output-stream))
+    (when error-stream
+      (.setError jruby-config error-stream))
     (Main. jruby-config)))
