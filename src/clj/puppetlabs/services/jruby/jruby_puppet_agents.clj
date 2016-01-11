@@ -58,7 +58,8 @@
       (catch Exception e
         (.clear pool)
         (.insertPill pool (PoisonPill. e))
-        (throw (IllegalStateException. "There was a problem adding a JRubyPuppet instance to the pool." e))))))
+        (throw (IllegalStateException. "There was a problem adding a JRubyPuppet instance to the pool." e)))))
+  )
 
 (schema/defn ^:always-validate
   flush-instance!

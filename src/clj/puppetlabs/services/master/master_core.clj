@@ -21,6 +21,12 @@
    endpoints are handled separately by the CA service."
   [request-handler]
   (comidi/routes
+    (comidi/GET "/environment_classes" request
+                (request-handler request))
+    (comidi/GET "/remove_jruby_from_pool" request
+                (request-handler request))
+    (comidi/GET "/put_jruby_back_in_pool" request
+                (request-handler request))
     (comidi/GET ["/node/" [#".*" :rest]] request
                    (request-handler request))
     (comidi/GET ["/file_content/" [#".*" :rest]] request

@@ -3,6 +3,7 @@
            (java.io StringReader)
            (com.puppetlabs.puppetserver JRubyPuppetResponse))
   (:require [clojure.tools.logging :as log]
+            [cheshire.core :as cheshire]
             [clojure.string :as string]
             [puppetlabs.ssl-utils.core :as ssl-utils]
             [ring.util.codec :as ring-codec]
@@ -10,7 +11,8 @@
             [slingshot.slingshot :as sling]
             [puppetlabs.trapperkeeper.authorization.ring :as ring-auth]
             [puppetlabs.puppetserver.ring.middleware.params :as pl-ring-params]
-            [puppetlabs.services.jruby.jruby-puppet-service :as jruby]))
+            [puppetlabs.services.jruby.jruby-puppet-service :as jruby]
+            [puppetlabs.services.protocols.jruby-puppet :as jruby-protocol]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Internal
@@ -301,6 +303,35 @@
       (catch service-unavailable? e
         (output-error request e 503)))))
 
+(def hold-jruby-instance (atom nil))
+
+(defn check-for-siphoning-off-jruby-instance
+  [f jruby-service]
+  (fn [request]
+    (cond
+      (.contains (:uri request) "remove_jruby_from_pool")
+        (do
+          (reset! hold-jruby-instance
+                  (jruby-protocol/borrow-instance jruby-service :hold-it))
+          {:status 200
+           :headers {"Content-Type" "text/plain"}
+           :body "removed it"})
+      (.contains (:uri request) "put_jruby_back_in_pool")
+        (do
+          (if-let [instance @hold-jruby-instance]
+            (do
+              (reset! hold-jruby-instance nil)
+              (jruby-protocol/return-instance jruby-service
+                                              instance
+                                              :putting-it-back)
+              {:status 200
+               :headers {"Content-Type" "text/plain"}
+               :body "put it back"})
+            {:status 200
+             :headers {"Content-Type" "text/plain"}
+             :body "nothing to put back"}))
+      :else f)))
+
 (defn wrap-with-jruby-instance
   "Middleware fn that borrows a jruby instance from the `jruby-service` and makes
   it available in the request as `:jruby-instance`"
@@ -313,17 +344,61 @@
       
       (f (assoc request :jruby-instance jruby-instance)))))
 
+(defrecord ClassInfoAtomWrapper
+  [atom])
+
+(def class-info-atom-wrapper (ClassInfoAtomWrapper. (atom {})))
+
 (defn jruby-request-handler
   "Build a request handler fn that processes a request using a JRubyPuppet instance"
   [config]
   (fn [request]
-    (->> request
-      wrap-params-for-jruby
-      (as-jruby-request config)
-      clojure.walk/stringify-keys
-      make-request-mutable
-      (.handleRequest (:jruby-instance request))
-      response->map)))
+    (if (.contains (:uri request) "environment_classes")
+      (let [curtime (System/currentTimeMillis)
+            request-with-params (pl-ring-params/params-request request)]
+        (if-let [environment
+                 (if-let [params (:params request-with-params)]
+                   (params "environment"))]
+          (do
+            (if-let [body (.getClassInfoForEnvironment
+                           (:jruby-instance request)
+                           environment)]
+              (do
+                (log/infof "Got class info, took: %d ms"
+                           (- (System/currentTimeMillis) curtime))
+                (swap! (:atom class-info-atom-wrapper) assoc environment body)
+                {:status 200
+                 :body (-> body (cheshire/generate-string))
+                 :headers {"Content-Type" "application/json"
+                           "X-Puppet-Version" "1.2.3"}})
+              (do
+                (log/infof "Environment not found: %s" environment)
+                {:status 200
+                 :body (-> "environment not found")
+                 :headers {"Content-Type" "text/plain"
+                           "X-Puppet-Version" "1.2.3"}})))
+          (do
+            (let [body (.getClassInfoForAllEnvironments (:jruby-instance request))]
+              (log/infof "Got class info, took: %d ms"
+                         (- (System/currentTimeMillis) curtime))
+              (reset! (:atom class-info-atom-wrapper) body)
+              {:status 200
+               :body (-> body (cheshire/generate-string))
+               :headers {"Content-Type" "application/json"
+                         "X-Puppet-Version" "1.2.3"}}))))
+      (do
+        (log/info "Starting request...")
+        (let [curtime (System/currentTimeMillis)
+              response (->> request
+                            wrap-params-for-jruby
+                            (as-jruby-request config)
+                            clojure.walk/stringify-keys
+                            make-request-mutable
+                            (.handleRequest (:jruby-instance request))
+                            response->map)]
+          (log/infof "Time to response: %d ms"
+                     (- (System/currentTimeMillis) curtime))
+          response)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Public
@@ -333,4 +408,5 @@
   [jruby-service config]
   (-> (jruby-request-handler config)
     (wrap-with-jruby-instance jruby-service)
+    (check-for-siphoning-off-jruby-instance jruby-service)
     wrap-with-error-handling))
