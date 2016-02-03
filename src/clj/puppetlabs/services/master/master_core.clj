@@ -23,13 +23,30 @@
 (def EnvironmentClassesFileEntry
   "Schema for an individual file entry which is part of the return payload
   for an environment_classes request"
-  {:path schema/Str
-   :classes [Map]})
+  (schema/either
+   {:path schema/Str
+    :classes [Map]}
+   {:path schema/Str
+    schema/Any schema/Any}))
 
 (def EnvironmentClassesInfo
   "Schema for the return payload an environment_classes request"
   {:name schema/Str
    :files [EnvironmentClassesFileEntry]})
+
+(schema/defn ^:always-validate
+  parsed-manifest-info-from-jruby->parsed-manifest-info-for-json
+    :- EnvironmentClassesFileEntry
+  "Convert the per-manifest file information received from the jruby service
+  into an appropriate map for use in serializing an environment_classes
+  response to JSON"
+  [file-info]
+  (assoc
+   (let [file-val (val file-info)]
+     (if (instance? Map file-val)
+       (into {} file-val)
+       {:classes file-val}))
+    :path (key file-info)))
 
 (schema/defn ^:always-validate
   class-info-from-jruby->class-info-for-json :- EnvironmentClassesInfo
@@ -39,7 +56,7 @@
   [info-from-jruby :- Map
    environment :- schema/Str]
   (->> info-from-jruby
-       (map #(hash-map :path (key %) :classes (val %)))
+       (map parsed-manifest-info-from-jruby->parsed-manifest-info-for-json)
        (sort-by :path)
        (vec)
        (hash-map :name environment :files)))

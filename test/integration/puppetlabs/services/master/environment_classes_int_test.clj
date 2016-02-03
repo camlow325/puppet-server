@@ -73,6 +73,8 @@
                             "'three']){}\n"
                             "class foo::morebaz ($baz) {}")
                        "baz")
+             borked-file (testutils/write-foo-pp-file
+                          (str "borked manifest") "borked")
              response (get-production-env-classes)]
          (is (= 200 (:status response)))
          (is (= {"name" "production",
@@ -97,6 +99,14 @@
                                        "name" "foo::morebaz"
                                        "params" [
                                                  {"name" "baz"}]}]}
+                          {"path" borked-file
+                           "error" (str "This Name has no effect. A value "
+                                        "was produced and then forgotten ("
+                                        "one or more preceding expressions "
+                                        "may have the wrong form) at "
+                                        borked-file
+                                        ":1:1")}
+
                           {"path" foo-file,
                            "classes" [{
                                        "name" "foo"
