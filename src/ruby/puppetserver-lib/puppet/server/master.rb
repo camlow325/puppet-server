@@ -27,6 +27,25 @@ class Puppet::Server::Master
   include Java::com.puppetlabs.puppetserver.JRubyPuppet
   include Puppet::Server::Network::HTTP::Handler
 
+  def dump_profile_data(base_profile_file_name, profile_data)
+    # flat_profile_file = File.new(base_profile_file_name + ".txt", "w")
+    # flat_profile_printer = JRuby::Profiler::FlatProfilePrinter.new(profile_data)
+    # flat_profile_printer.printProfile(flat_profile_file)
+    # flat_profile_file.close
+
+    json_profile_file = File.new(base_profile_file_name + ".json", "w")
+    json_profile_print_stream =
+        java.io.PrintStream.new(json_profile_file.to_outputstream)
+    json_profile_printer = JRuby::Profiler::JsonProfilePrinter.new(profile_data)
+    json_profile_printer.printProfile(json_profile_print_stream, true)
+    json_profile_file.close
+
+    html_profile_file = File.new(base_profile_file_name + ".html", "w")
+    html_profile_printer = JRuby::Profiler::HtmlProfilePrinter.new(profile_data)
+    html_profile_printer.printProfile(html_profile_file)
+    html_profile_file.close
+  end
+
   def initialize(puppet_config, puppet_server_config)
     @id = puppet_server_config["id"]
     @jruby_profiler_path = puppet_server_config["jruby_profiler_path"]
@@ -50,9 +69,8 @@ class Puppet::Server::Master
       @env_loader = Puppet.lookup(:environments)
     end
 
-    profile_printer = JRuby::Profiler::HtmlProfilePrinter.new(profile_data)
-    profile_printer.printProfile(
-        File.new(init_dir + "/" + @id + "-init.html", "w"))
+    base_profile_file_name = init_dir + "/" + @id + "-init"
+    dump_profile_data(base_profile_file_name, profile_data)
   end
 
   def handleRequest(request)
@@ -68,15 +86,12 @@ class Puppet::Server::Master
       # `response` now contains all of the response data
     end
 
-    profile_printer = JRuby::Profiler::HtmlProfilePrinter.new(profile_data)
-    profile_printer.printProfile(
-        File.new(request_dir +
-                     "/jruby-" +
-                     @id.to_s +
-                     "-req-" +
-                     @requests.to_s +
-                     ".html",
-        "w"))
+    base_profile_file_name = request_dir +
+        "/jruby-" +
+        @id.to_s.rjust(2, "0") +
+        "-req-" +
+        @requests.to_s.rjust(10, "0")
+    dump_profile_data(base_profile_file_name, profile_data)
 
     body = response[:body]
     body_to_return =
