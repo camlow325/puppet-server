@@ -92,7 +92,10 @@
 
     * :use-legacy-auth-conf - Whether to use the legacy core Puppet auth.conf
         (true) or trapperkeeper-authorization (false) to authorize requests
-        being made to core Puppet endpoints."
+        being made to core Puppet endpoints.
+
+    * :jruby-profiler-path - Path to which jruby profiler output should be
+        written."
   {:ruby-load-path [schema/Str]
    :gem-home schema/Str
    :compile-mode SupportedJRubyCompileModes
@@ -108,7 +111,8 @@
    :borrow-timeout schema/Int
    :max-active-instances schema/Int
    :max-requests-per-instance schema/Int
-   :use-legacy-auth-conf schema/Bool})
+   :use-legacy-auth-conf schema/Bool
+   :jruby-profiler-path (schema/maybe schema/Str)})
 
 (def JRubyPoolAgent
   "An agent configured for use in managing JRuby pools"
