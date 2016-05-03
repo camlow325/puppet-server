@@ -8,7 +8,7 @@
            (com.puppetlabs.puppetserver.pool JRubyPool)
            (puppetlabs.services.jruby.jruby_puppet_schemas JRubyPuppetInstance PoisonPill ShutdownPoisonPill)
            (java.util HashMap)
-           (org.jruby Main RubyInstanceConfig RubyInstanceConfig$CompileMode)
+           (org.jruby Main RubyInstanceConfig RubyInstanceConfig$CompileMode RubyInstanceConfig$ProfilingMode)
            (org.jruby.embed LocalContextScope)
            (java.util.concurrent TimeUnit)
            (clojure.lang IFn)
@@ -106,7 +106,10 @@
   [jruby-config :- jruby-schemas/ConfigurableJRuby
    ruby-load-path :- [schema/Str]
    gem-home :- schema/Str
-   compile-mode :- jruby-schemas/SupportedJRubyCompileModes]
+   compile-mode :- jruby-schemas/SupportedJRubyCompileModes
+   jruby-profiling? :- schema/Bool]
+  (when jruby-profiling?
+    (.setProfilingMode jruby-config RubyInstanceConfig$ProfilingMode/API))
   (doto jruby-config
     (.setLoadPaths (managed-load-path ruby-load-path))
     (.setCompileMode (get-compile-mode compile-mode))
@@ -116,26 +119,34 @@
   "Creates a clean instance of a JRuby `ScriptingContainer` with no code loaded."
   [ruby-load-path :- [schema/Str]
    gem-home :- schema/Str
-   compile-mode :- jruby-schemas/SupportedJRubyCompileModes]
+   compile-mode :- jruby-schemas/SupportedJRubyCompileModes
+   jruby-profiling? :- schema/Bool]
   {:pre [(sequential? ruby-load-path)
          (every? string? ruby-load-path)
          (string? gem-home)]
    :post [(instance? ScriptingContainer %)]}
   (-> (ScriptingContainer. LocalContextScope/SINGLETHREAD)
-      (init-jruby-config ruby-load-path gem-home compile-mode)))
+      (init-jruby-config ruby-load-path
+                         gem-home
+                         compile-mode
+                         jruby-profiling?)))
 
 (schema/defn ^:always-validate create-scripting-container :- ScriptingContainer
   "Creates an instance of `org.jruby.embed.ScriptingContainer` and loads up the
   puppet and facter code inside it."
   [ruby-load-path :- [schema/Str]
    gem-home :- schema/Str
-   compile-mode :- jruby-schemas/SupportedJRubyCompileModes]
+   compile-mode :- jruby-schemas/SupportedJRubyCompileModes
+   jruby-profiling? :- schema/Bool]
   ;; for information on other legal values for `LocalContextScope`, there
   ;; is some documentation available in the JRuby source code; e.g.:
   ;; https://github.com/jruby/jruby/blob/1.7.11/core/src/main/java/org/jruby/embed/LocalContextScope.java#L58
   ;; I'm convinced that this is the safest and most reasonable value
   ;; to use here, but we could potentially explore optimizations in the future.
-  (doto (empty-scripting-container ruby-load-path gem-home compile-mode)
+  (doto (empty-scripting-container ruby-load-path
+                                   gem-home
+                                   compile-mode
+                                   jruby-profiling?)
     ;; As of JRuby 1.7.20 (and the associated 'jruby-openssl' it pulls in),
     ;; we need to explicitly require 'jar-dependencies' so that it is used
     ;; to manage jar loading.  We do this so that we can instruct
@@ -195,7 +206,8 @@
                 http-client-ssl-protocols http-client-cipher-suites
                 http-client-connect-timeout-milliseconds
                 http-client-idle-timeout-milliseconds
-                use-legacy-auth-conf]} config]
+                use-legacy-auth-conf
+                jruby-profiler-path]} config]
     (when-not ruby-load-path
       (throw (Exception.
                "JRuby service missing config value 'ruby-load-path'")))
@@ -203,7 +215,8 @@
     (let [scripting-container   (create-scripting-container
                                  ruby-load-path
                                  gem-home
-                                 compile-mode)
+                                 compile-mode
+                                 (not (nil? jruby-profiler-path)))
           env-registry          (puppet-env/environment-registry)
           ruby-puppet-class     (.runScriptlet scripting-container "Puppet::Server::Master")
           puppet-config         (config->puppet-config config)
@@ -219,6 +232,8 @@
       (.put puppetserver-config "http_idle_timeout_milliseconds"
         http-client-idle-timeout-milliseconds)
       (.put puppetserver-config "use_legacy_auth_conf" use-legacy-auth-conf)
+      (.put puppetserver-config "id" (str id))
+      (.put puppetserver-config "jruby_profiler_path" jruby-profiler-path)
       (let [instance (jruby-schemas/map->JRubyPuppetInstance
                        {:pool                 pool
                         :id                   id
@@ -341,12 +356,16 @@
    input-stream :- (schema/maybe InputStream)
    output-stream :- (schema/maybe PrintStream)
    error-stream :- (schema/maybe PrintStream)]
-  (let [{:keys [ruby-load-path gem-home compile-mode]} config
+  (let [{:keys [ruby-load-path
+                gem-home
+                compile-mode
+                jruby-profiler-path]} config
         jruby-config (init-jruby-config
                       (RubyInstanceConfig.)
                       ruby-load-path
                       gem-home
-                      compile-mode)]
+                      compile-mode
+                      (not (nil? jruby-profiler-path)))]
     (when input-stream
       (.setInput jruby-config input-stream))
     (when output-stream

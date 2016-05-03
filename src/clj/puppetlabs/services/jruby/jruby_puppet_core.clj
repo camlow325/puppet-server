@@ -13,7 +13,7 @@
   (:import (puppetlabs.services.jruby.jruby_puppet_schemas JRubyPuppetInstance)
            (com.puppetlabs.puppetserver PuppetProfiler)
            (clojure.lang IFn)
-           (java.io InputStream PrintStream)))
+           (java.io InputStream PrintStream File)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Constants

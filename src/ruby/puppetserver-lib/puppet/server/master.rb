@@ -11,6 +11,9 @@ require 'puppet/server/network/http/handler'
 
 require 'java'
 
+require 'jruby/profiler'
+require 'fileutils'
+
 ##
 ## This class is a bridge between the puppet ruby code and the java interface
 ## `com.puppetlabs.puppetserver.JRubyPuppet`.  The first `include` line in the class
@@ -25,23 +28,55 @@ class Puppet::Server::Master
   include Puppet::Server::Network::HTTP::Handler
 
   def initialize(puppet_config, puppet_server_config)
-    Puppet::Server::Config.initialize_puppet_server(puppet_server_config)
-    Puppet::Server::PuppetConfig.initialize_puppet(puppet_config)
-    # Tell Puppet's network layer which routes we are willing handle - which is
-    # the master routes, not the CA routes.
-    master_prefix = Regexp.new("^#{Puppet::Network::HTTP::MASTER_URL_PREFIX}/")
-    master_routes = Puppet::Network::HTTP::Route.path(master_prefix).
-                          any.
-                          chain(Puppet::Network::HTTP::API::Master::V3.routes)
-    register([master_routes])
-    @env_loader = Puppet.lookup(:environments)
+    @id = puppet_server_config["id"]
+    @jruby_profiler_path = puppet_server_config["jruby_profiler_path"]
+    @requests = 0
+
+    init_dir = @jruby_profiler_path + "/init"
+    FileUtils::mkdir_p (init_dir)
+
+    profile_data = JRuby::Profiler::profile do
+      Puppet::Server::Config.initialize_puppet_server(puppet_server_config)
+
+      Puppet::Server::PuppetConfig.initialize_puppet(puppet_config)
+      # Tell Puppet's network layer which routes we are willing handle - which is
+      # the master routes, not the CA routes.
+      master_prefix = Regexp.new("^#{Puppet::Network::HTTP::MASTER_URL_PREFIX}/")
+      master_routes = Puppet::Network::HTTP::Route.path(master_prefix).
+          any.
+          chain(Puppet::Network::HTTP::API::Master::V3.routes)
+      register([master_routes])
+
+      @env_loader = Puppet.lookup(:environments)
+    end
+
+    profile_printer = JRuby::Profiler::HtmlProfilePrinter.new(profile_data)
+    profile_printer.printProfile(
+        File.new(init_dir + "/" + @id + "-init.html", "w"))
   end
 
   def handleRequest(request)
     response = {}
-    process(request, response)
-    # 'process' returns only the status -
-    # `response` now contains all of the response data
+    @requests = @requests + 1
+
+    request_dir = @jruby_profiler_path + request["uri"]
+    FileUtils::mkdir_p (request_dir)
+
+    profile_data = JRuby::Profiler::profile do
+      process(request, response)
+      # 'process' returns only the status -
+      # `response` now contains all of the response data
+    end
+
+    profile_printer = JRuby::Profiler::HtmlProfilePrinter.new(profile_data)
+    profile_printer.printProfile(
+        File.new(request_dir +
+                     "/jruby-" +
+                     @id.to_s +
+                     "-req-" +
+                     @requests.to_s +
+                     ".html",
+        "w"))
 
     body = response[:body]
     body_to_return =
