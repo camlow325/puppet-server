@@ -6,7 +6,8 @@
             [puppetlabs.services.jruby.jruby-puppet-schemas :as jruby-schemas])
   (:import (clojure.lang IFn IDeref)
            (com.puppetlabs.puppetserver PuppetProfiler)
-           (puppetlabs.services.jruby.jruby_puppet_schemas PoisonPill RetryPoisonPill JRubyPuppetInstance ShutdownPoisonPill)))
+           (puppetlabs.services.jruby.jruby_puppet_schemas PoisonPill RetryPoisonPill JRubyPuppetInstance ShutdownPoisonPill)
+           [com.yourkit.api Controller]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Private
@@ -73,7 +74,9 @@
   (jruby-internal/cleanup-pool-instance! instance)
   (jruby-internal/create-pool-instance! new-pool new-id config
                                         (partial send-flush-instance! pool-context)
-                                        profiler))
+                                        profiler)
+  (log/infof "Captured memory snapshot %s"
+             (-> (Controller.) (.captureMemorySnapshot))))
 
 (schema/defn ^:always-validate
   pool-initialized? :- schema/Bool
