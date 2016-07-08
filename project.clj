@@ -35,11 +35,11 @@
                  [liberator "0.12.0"]
                  [org.apache.commons/commons-exec "1.3"]
 
-                 [org.jruby/jruby-core "9.1.0.0"]
+                 [org.jruby/jruby-core "9.1.2.0"]
                  ;; NOTE: jruby-stdlib packages some unexpected things inside
                  ;; of its jar; please read the detailed notes above the
                  ;; 'uberjar-exclusions' example toward the end of this file.
-                 [org.jruby/jruby-stdlib "9.1.0.0"]
+                 [org.jruby/jruby-stdlib "9.1.2.0"]
 
                  ;; we do not currently use this dependency directly, but
                  ;; we have documentation that shows how users can use it to
