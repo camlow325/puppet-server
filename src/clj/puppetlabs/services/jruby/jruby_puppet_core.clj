@@ -194,6 +194,7 @@
       (update-in [:max-active-instances] #(or % (default-pool-size (ks/num-cpus))))
       (update-in [:max-requests-per-instance] #(or % 0))
       (update-in [:use-legacy-auth-conf] #(or % (nil? %)))
+      (update-in [:do-gcs] #(or % (not (nil? %))))
       (dissoc :environment-class-cache-enabled)))
 
 (def facter-jar

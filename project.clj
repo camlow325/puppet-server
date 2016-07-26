@@ -36,6 +36,7 @@
                  [liberator "0.12.0"]
                  [org.apache.commons/commons-exec "1.3"]
 
+                 ;;[org.jruby/jruby-complete "1.7.20.1"]
                  [org.jruby/jruby-core "1.7.20.1"
                   :exclusions [com.github.jnr/jffi com.github.jnr/jnr-x86asm]]
                  ;; jffi and jnr-x86asm are explicit dependencies because,
@@ -138,10 +139,14 @@
 
   :aliases {"gem" ["trampoline" "run" "-m" "puppetlabs.puppetserver.cli.gem"]
             "ruby" ["trampoline" "run" "-m" "puppetlabs.puppetserver.cli.ruby"]
-            "irb" ["trampoline" "run" "-m" "puppetlabs.puppetserver.cli.irb"]}
+            "irb" ["trampoline" "run" "-m" "puppetlabs.puppetserver.cli.irb"]
+            "jrubies" ["trampoline" "run" "-m" "puppetlabs.puppetserver.cli.jrubies"]}
 
   ; tests use a lot of PermGen (jruby instances)
-  :jvm-opts ["-XX:MaxPermSize=256m" "-Xmx2g"]
+  ; :jvm-opts ["-XX:MaxPermSize=256m" "-Xmx2g" "-Djruby.debug.fullTrace=true"]
+  ;:jvm-opts ["-XX:MaxPermSize=256m" "-Xmx2g" "-Djruby.debug.parser=true"]
+  :jvm-opts ["-XX:MaxPermSize=256m" "-Xmx2g" "-Djruby.debug.loadService=true"]
+  ;:jvm-opts ["-XX:MaxPermSize=256m" "-Xmx2g"]
 
   :repl-options {:init-ns user}
 

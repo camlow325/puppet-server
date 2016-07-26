@@ -12,7 +12,8 @@
            (org.jruby.embed LocalContextScope)
            (java.util.concurrent TimeUnit)
            (clojure.lang IFn)
-           (com.puppetlabs.puppetserver.jruby ScriptingContainer)))
+           (com.puppetlabs.puppetserver.jruby ScriptingContainer)
+           (java.net URL)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Definitions
@@ -135,15 +136,31 @@
   ;; https://github.com/jruby/jruby/blob/1.7.11/core/src/main/java/org/jruby/embed/LocalContextScope.java#L58
   ;; I'm convinced that this is the safest and most reasonable value
   ;; to use here, but we could potentially explore optimizations in the future.
-  (doto (empty-scripting-container ruby-load-path gem-home compile-mode)
+  (let [container (empty-scripting-container ruby-load-path gem-home compile-mode)]
     ;; As of JRuby 1.7.20 (and the associated 'jruby-openssl' it pulls in),
     ;; we need to explicitly require 'jar-dependencies' so that it is used
     ;; to manage jar loading.  We do this so that we can instruct
     ;; 'jar-dependencies' to not actually load any jars.  See the environment
     ;; variable configuration in 'init-jruby-config' for more
     ;; information.
-    (.runScriptlet "require 'jar-dependencies'")
-    (.runScriptlet "require 'puppet/server/master'")))
+    (.runScriptlet container "require 'jar-dependencies'")
+    (let [jopenssl-jar (URL. (str "jar:file:/Users/jbarlow/.m2/repository/org/"
+                                  "jruby/jruby-stdlib/1.7.20.1/"
+                                  "jruby-stdlib-1.7.20.1.jar!/META-INF/"
+                                  "jruby.home/lib/ruby/shared/jopenssl.jar"))
+          jopenssl-stream #_(.openStream jopenssl-jar) true
+          some-bytes (byte-array 4096)]
+      ;(log/infof "*** Read some jopenssl bytes: %d"
+      ;           (.read jopenssl-stream some-bytes))
+    ;(log/info "** ScriptingContainer loadpaths before tweak: "
+    ;          (.runScriptlet container "$LOAD_PATH"))
+    ;(.runScriptlet container
+    ;               "$LOAD_PATH.delete(\"file:/Users/jbarlow/.m2/repository/org/jruby/jruby-stdlib/1.7.20.1/jruby-stdlib-1.7.20.1.jar!/META-INF/jruby.home/lib/ruby/shared\")")
+    ;(log/info "** ScriptingContainer loadpaths after tweak: "
+    ;          (.runScriptlet container "$LOAD_PATH"))
+    (.runScriptlet container "require 'puppet/server/master'")
+    ;(.close jopenssl-stream)
+    container)))
 
 (schema/defn ^:always-validate config->puppet-config :- HashMap
   "Given the raw jruby-puppet configuration section, return a
@@ -195,7 +212,8 @@
                 http-client-ssl-protocols http-client-cipher-suites
                 http-client-connect-timeout-milliseconds
                 http-client-idle-timeout-milliseconds
-                use-legacy-auth-conf]} config]
+                use-legacy-auth-conf
+                do-gcs]} config]
     (when-not ruby-load-path
       (throw (Exception.
                "JRuby service missing config value 'ruby-load-path'")))
@@ -219,6 +237,12 @@
       (.put puppetserver-config "http_idle_timeout_milliseconds"
         http-client-idle-timeout-milliseconds)
       (.put puppetserver-config "use_legacy_auth_conf" use-legacy-auth-conf)
+      (if do-gcs
+        (future (do
+                  (log/info "Sleeping for gc pre puppet init...")
+                  (Thread/sleep (rand 2000))
+                  (log/info "Doing gc pre puppet init...")
+                  (System/gc))))
       (let [instance (jruby-schemas/map->JRubyPuppetInstance
                        {:pool                 pool
                         :id                   id
@@ -234,6 +258,10 @@
                                                JRubyPuppet)
                         :scripting-container  scripting-container
                         :environment-registry env-registry})]
+        (if do-gcs
+          (future (do
+                    (log/info "Requesting gc after puppet init...")
+                    (System/gc))))
         (.register pool instance)
         instance))))
 
@@ -262,7 +290,7 @@
 (schema/defn borrow-from-pool!* :- jruby-schemas/JRubyPuppetBorrowResult
   "Given a borrow function and a pool, attempts to borrow a JRuby instance from a pool.
   If successful, updates the state information and returns the JRuby instance.
-  Returns nil if the borrow function returns nil; throws an exception if
+  Returns nil if the borrow function returns qnil; throws an exception if
   the borrow function's return value indicates an error condition."
   [borrow-fn :- (schema/pred ifn?)
    pool :- jruby-schemas/pool-queue-type]

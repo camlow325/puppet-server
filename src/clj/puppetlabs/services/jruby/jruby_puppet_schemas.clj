@@ -108,7 +108,8 @@
    :borrow-timeout schema/Int
    :max-active-instances schema/Int
    :max-requests-per-instance schema/Int
-   :use-legacy-auth-conf schema/Bool})
+   :use-legacy-auth-conf schema/Bool
+   :do-gcs schema/Bool})
 
 (def JRubyPoolAgent
   "An agent configured for use in managing JRuby pools"

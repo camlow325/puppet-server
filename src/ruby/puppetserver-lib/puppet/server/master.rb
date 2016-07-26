@@ -1,3 +1,10 @@
+# set_trace_func proc { |event, file, line, id, binding, classname|
+#   #if classname.to_s =~ /OpenSSL/
+#     printf "* TRACECLASS, %8s %s:%-2d %10s %8s\n", event, file, line, id, classname
+#     puts caller
+#   #end
+# }
+
 require 'puppet/server'
 
 require 'puppet/info_service'
