@@ -59,6 +59,7 @@
                  [puppetlabs/jruby-utils "0.2.0"]
                  [puppetlabs/trapperkeeper ~tk-version]
                  [puppetlabs/trapperkeeper-authorization "0.7.0"]
+                 [puppetlabs/trapperkeeper-metrics "0.4.2"]
                  [puppetlabs/trapperkeeper-scheduler "0.0.1"]
                  [puppetlabs/kitchensink ~ks-version]
                  [puppetlabs/ssl-utils "0.8.1"]
