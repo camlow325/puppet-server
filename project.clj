@@ -7,6 +7,26 @@
     :password :env/nexus_jenkins_password
     :sign-releases false })
 
+(def heap-size-from-profile-clj
+  (let [profile-clj (io/file (System/getenv "HOME") ".lein" "profiles.clj")]
+    (if (.exists profile-clj)
+      (-> profile-clj
+        slurp
+        read-string
+        (get-in [:user :puppetserver-heap-size])))))
+
+(defn heap-size
+  [default-heap-size heap-size-type]
+  (or
+    (System/getenv "PUPPETSERVER_HEAP_SIZE")
+    heap-size-from-profile-clj
+    (do
+      (println "Using" default-heap-size heap-size-type
+        "heap since not set via PUPPETSERVER_HEAP_SIZE environment variable or"
+        "user.puppetserver-heap-size in ~/.lein/profiles.clj file. Set to at"
+        "least 6G for better performance during test runs.")
+      default-heap-size)))
+
 (defproject puppetlabs/puppetserver ps-version
   :description "Puppet Server"
 
@@ -38,7 +58,8 @@
                  ;; in different versions of the three different logback artifacts
                  [net.logstash.logback/logstash-logback-encoder]
 
-                 [puppetlabs/jruby-utils "0.4.0"]
+                 [puppetlabs/jruby-utils "0.4.1-SNAPSHOT"]
+                 ;[puppetlabs/trapperkeeper "1.5.3-SNAPSHOT"]
                  [puppetlabs/trapperkeeper]
                  [puppetlabs/trapperkeeper-authorization]
                  [puppetlabs/trapperkeeper-scheduler]
@@ -138,7 +159,14 @@
             "irb" ["trampoline" "run" "-m" "puppetlabs.puppetserver.cli.irb"]}
 
   ; tests use a lot of PermGen (jruby instances)
-  :jvm-opts ["-XX:MaxPermSize=256m" "-Xmx2g"]
+  :jvm-opts ["-XX:MaxPermSize=256m"
+             ~(str "-Xms" (heap-size "1G" "min"))
+             ~(str "-Xmx" (heap-size "2G" "max"))
+             "-Dcom.sun.management.jmxremote=true"
+             "-Dcom.sun.management.jmxremote.port=9010"
+             "-Dcom.sun.management.jmxremote.authenticate=false"
+             "-Dcom.sun.management.jmxremote.local.only=false"
+             "-Dcom.sun.management.jmxremote.ssl=false"]
 
   :repl-options {:init-ns user}
 
