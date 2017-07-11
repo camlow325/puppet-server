@@ -141,8 +141,8 @@
 
   :profiles {:dev {:source-paths  ["dev"]
                    :dependencies  [[org.clojure/tools.namespace]
-                                   [puppetlabs/trapperkeeper-webserver-jetty9 nil]
-                                   [puppetlabs/trapperkeeper-webserver-jetty9 nil :classifier "test"]
+                                   [puppetlabs/trapperkeeper-webserver-jetty9 "2.0.2-SNAPSHOT"]
+                                   [puppetlabs/trapperkeeper-webserver-jetty9 "2.0.2-SNAPSHOT" :classifier "test"]
                                    [puppetlabs/trapperkeeper nil :classifier "test" :scope "test"]
                                    [puppetlabs/trapperkeeper-metrics :classifier "test" :scope "test"]
                                    [puppetlabs/kitchensink nil :classifier "test" :scope "test"]
